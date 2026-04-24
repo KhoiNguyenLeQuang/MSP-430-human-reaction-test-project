@@ -1,5 +1,5 @@
 #include <msp430g2553.h>
-#include "lcd.h" 
+#include "LCD.h" 
 
 #define STATE_INIT      0
 #define STATE_COUNTDOWN 1
@@ -12,11 +12,15 @@ volatile unsigned int is_running = 0;
 volatile unsigned int update_display = 1;
 volatile unsigned int button_pressed = 0; // Check if the button has been pressed or not
 
-unsigned int current_state = 0;
 unsigned long reaction_times[10];         // Array of registers that stores the value of the time
 unsigned int test_count = 0;
-unsigned long avg = 0;
-unsigned long sum = 0;
+unsigned int avg = 0;
+unsigned int sum = 0;
+
+void Takeavg();
+{
+
+}
 
 void main(void)
 {
@@ -29,8 +33,8 @@ void main(void)
     initLCD(); 
 
     // LEDs
-    P2DIR |= BIT4 | BIT5;           
-    P2OUT &= ~(BIT4 | BIT5);  
+    P1DIR |= BIT0 | BIT6;           
+    P1OUT &= ~(BIT0 | BIT6);  
 
     // P2.3 button
     P2DIR &= ~BIT3;                 
@@ -51,67 +55,50 @@ void main(void)
 
     // MAIN LOOP
 while(1) {
+        
         if (current_state == STATE_INIT) {
-            clearLCD();
-            printString("Hit button to   start");
+            printString("Hit button to start");
             button_pressed = 0; 
             while(!button_pressed); // This is a infinite loop that ensures the button being pressed
             current_state = STATE_COUNTDOWN;
         }
         
         else if (current_state == STATE_COUNTDOWN) {
-            clearLCD();
-            printString("Wait for green  light to turn on");
-            delay_ms(5000); // 5 second delay
-            clearLCD();
             printString("3");
-            delay_ms(1000); // 1 second delay
-            clearLCD();
+            __delay_cycles(1000000); // 1 second delay
             printString("2");
-            delay_ms(1000); 
-            clearLCD();
+            __delay_cycles(1000000); 
             printString("1");
-            delay_ms(1000); 
-            clearLCD();
+            __delay_cycles(1000000); 
             printString("GO!");
-            delay_ms(500); // Half a second
-            clearLCD();
+            __delay_cycles(500000); // Half a second
             
             test_count = 0; // Reset test counter
             current_state = STATE_WAIT;
         }
         
         else if (current_state == STATE_WAIT) {
-            if (test_count == 0) {
-            // Wait 3 seconds before turning on LED
-            delay_ms(3000);              
-            }
-            else {
-                // This took the previous measurement multiply by the current test count and add 4s to it
-                unsigned long previous_time = reaction_times[test_count - 1]; // the value of previous register.
-                unsigned long dynamic_delay_cycles = (test_count * previous_time) + 4000;
-                delay_ms(dynamic_delay_cycles);
-                ;
-            }
+            printString("Wait for Green..");
             
-            button_pressed = 0; 
+            // Wait 3 seconds before turning on LED
+            __delay_cycles(3000000); 
+            
+            button_pressed = 0; // Clear any accidental early presses
             current_state = STATE_MEASURE;
         }
         
         else if (current_state == STATE_MEASURE) {
-            P2OUT |= BIT5;      // Turn ON external Green LED (P2.5)
+            P1OUT |= BIT6;      // Turn ON Green LED (P1.6)
             
             time_ticks = 0;     // Reset stopwatch
             is_running = 1;     // Start stopwatch
             
-            while(!button_pressed) { 
-                if (update_display == 1) {
+            while(!button_pressed) { // Shows time 
                 printTime(time_ticks);
-                }
             }
-
+            
             is_running = 0;     // Stop stopwatch
-            P2OUT &= ~BIT5;     // Turn OFF Green LED
+            P1OUT &= ~BIT6;     // Turn OFF Green LED
             
             // Save time to the array (the "different registers")
             reaction_times[test_count] = time_ticks; 
@@ -125,12 +112,14 @@ while(1) {
         }
         
         else if (current_state == STATE_DONE) {
+            printString("Done, calc...");
+            
             int i;
             for(i = 0; i < 10; i++) {
-                P2OUT ^= (BIT4 | BIT5); // Toggle P2.4 and P2.5
-                delay_ms(500); // Fast blink delay
+                P1OUT ^= (BIT0 | BIT6); // Toggle P1.0 and P1.6
+                __delay_cycles(200000); // Fast blink delay
             }
-            P2OUT &= ~(BIT4 | BIT5);  
+            P1OUT &= ~(BIT0 | BIT6);  
             
             sum = 0;
             for(i = 0; i < 10; i++) {
@@ -139,12 +128,12 @@ while(1) {
             avg = sum / 10;
             
             // Display final average
+            printString("Avg Reaction:");
             printAvg(avg); 
-            delay_ms(10000); // Delay 10s
-            clearLCD();
+            __delay_cycles(10000000) // Delay 10s
             button_pressed = 0;
-            printString("Press button to restart");
-            while (!button_pressed);
+            printString("Press button to restart")
+            while(!button_pressed); 
             current_state = STATE_INIT;
         }
     }
