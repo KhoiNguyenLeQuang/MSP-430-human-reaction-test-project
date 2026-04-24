@@ -19,7 +19,6 @@ A microcontroller-based embedded system that tests and measures human reaction t
 ## Pinout & Wiring Guide
 
 **⚠️ IMPORTANT: Hardware Conflict Avoidance**
-Because the LCD requires 8 data lines, all of Port 1 (`P1.0` - `P1.7`) is dedicated to the LCD. Do not use the Launchpad's onboard LEDs (which are hardwired to P1.0 and P1.6), as this will cause the LCD to crash or display garbage text. 
 
 ### LCD Connections
 | LCD Pin | MSP430 Pin | Function |
