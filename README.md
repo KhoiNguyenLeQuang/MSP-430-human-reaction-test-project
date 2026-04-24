@@ -1,3 +1,57 @@
-# MSP-430-human-reaction-test-project
+# MSP430 Human Reaction Timer
 
-MSP430 Human Reaction Timer ⏱️A standalone embedded systems project built on the TI MSP430G2553 Launchpad. This project acts as a human reaction tester, measuring how quickly a user can press a button after a visual cue (an LED turning on). It runs 10 consecutive trials, dynamically randomizes the wait times to prevent guessing, and calculates the user's average reaction time.All data, instructions, and calculations are displayed in real-time on a 16x2 Character LCD.✨ FeaturesFinite State Machine Architecture: Smoothly transitions between initialization, countdowns, waiting periods, active measurement, and calculation states.Dynamic Randomized Delays: The wait time between the countdown and the LED turning on is calculated dynamically based on the user's previous reaction time. This makes the delay unpredictable, preventing users from "jumping the gun."Hardware Interrupts: Uses PORT2 hardware interrupts for instant, non-blocking button press detection.Hardware Timers: Utilizes Timer1_A0 as a highly accurate background stopwatch (10ms ticks) to measure reaction time without relying on inaccurate CPU cycle delays.Custom LCD Library: Includes a custom-built, non-blocking 8-bit LCD driver (LCD.c and LCD.h) that correctly handles line wrapping and time formatting.🛠️ Hardware Requirements1x Texas Instruments MSP430G2553 Launchpad1x 16x2 Character LCD (HD44780 compatible)1x Tactile Push Button2x LEDs (e.g., Green and Red/Blue)Jumper wires and a breadboard🔌 Pinout & Wiring GuideWARNING: Do not use the Launchpad's built-in LEDs (P1.0 and P1.6) for this project, as Port 1 is entirely dedicated to the LCD data bus.ComponentMSP430 PinNotesLCD Data Bus (D0-D7)P1.0 - P1.7Connect sequentially (D0 to P1.0, D1 to P1.1, etc.)LCD RS (Register Select)P2.0Controls Command vs. Data modeLCD E (Enable)P2.1Clocks the data into the LCDUser ButtonP2.3Wire diagonally across the button. Connect the other leg to GND. Uses internal pull-up resistor.LED 1 (Optional/Red)P2.4Connect with a current-limiting resistor to GND.LED 2 (Green/Go)P2.5Connect with a current-limiting resistor to GND.🚀 How to PlayPower on the MSP430. The LCD will read "Hit button to start".Press the button on P2.3 to initiate the sequence.The screen will display a 3-second countdown (3... 2... 1... GO!).The screen will say "Wait for green light to turn on". Wait. 5. After a random delay (between 3 and 6 seconds), the Green LED (P2.5) will turn on.Press the button as fast as you can! Your reaction time will be recorded.Repeat this process for 10 trials.At the end of the 10th trial, the LEDs will flash, and the LCD will display your Average Reaction Time formatted in MM:SS.ms.Press the button again to restart the game.💻 Software Setup (Code Composer Studio)Open Code Composer Studio (CCS) and create a new CCS Project for the MSP430G2553.Add main.c, LCD.c, and LCD.h to your project folder.Ensure your compiler settings do not have any strict limitations on standard C libraries (though this code relies primarily on bare-metal register manipulation).Build the project (Hammer icon).Flash it to the board (Bug/Debug icon) and click "Resume" (Play button) to run the code!🧠 Code HighlightsSoftware Debouncing: The PORT2_VECTOR interrupt includes a short for-loop delay to naturally debounce the tactile button, ensuring a single physical press doesn't register as multiple rapid software triggers.State Machine: Governed by the current_state variable, ensuring the CPU never gets locked in nested while loops and can safely exit states at any time.
+A microcontroller-based embedded system that tests and measures human reaction time. Built using the Texas Instruments MSP430G2553 Launchpad, this project runs a 10-trial sequence, dynamically randomizes the wait time between trials, and calculates the user's average reaction time in milliseconds.
+
+## Features
+* **10-Trial Sequence:** Automatically loops through 10 consecutive reaction tests.
+* **Dynamic Wait Times:** Prevents the user from predicting the light by calculating a dynamic delay `(test_count * previous_time) + 4000ms` before the next stimulus.
+* **Live LCD Feedback:** Displays countdowns, current trial times, and the final calculated average using a 16x2 character LCD.
+* **Hardware Interrupts:** Utilizes Timer1 for precise 10ms time tracking and Port 2 hardware interrupts for instant button-press detection.
+* **State Machine Architecture:** Clean, non-blocking `while(1)` loop separated into discrete states (Init, Countdown, Wait, Measure, Done).
+
+## Hardware Requirements
+* **Microcontroller:** TI MSP430G2553 Launchpad
+* **Display:** 16x2 Character LCD (8-bit mode)
+* **Inputs:** 1x Tactile Push Button
+* **Outputs:** 2x LEDs (e.g., 1 Green "Go" LED, 1 additional LED for end-sequence blinking)
+* Breadboard, jumper wires, and appropriate current-limiting resistors for the LEDs.
+
+## Pinout & Wiring Guide
+
+**⚠️ IMPORTANT: Hardware Conflict Avoidance**
+Because the LCD requires 8 data lines, all of Port 1 (`P1.0` - `P1.7`) is dedicated to the LCD. Do not use the Launchpad's onboard LEDs (which are hardwired to P1.0 and P1.6), as this will cause the LCD to crash or display garbage text. 
+
+### LCD Connections
+| LCD Pin | MSP430 Pin | Function |
+| :--- | :--- | :--- |
+| RS | `P2.0` | Register Select |
+| E | `P2.1` | Enable Pulse |
+| D0 - D7 | `P1.0` - `P1.7` | 8-bit Data Bus |
+
+### External Components
+| Component | MSP430 Pin | Wiring Instructions |
+| :--- | :--- | :--- |
+| **Tactile Button** | `P2.3` | Connect one leg to `P2.3`, and the diagonally opposite leg to `GND`. (Internal pull-up resistor is enabled in code). |
+| **LED 1 (Toggle)** | `P2.4` | Connect `P2.4` -> Resistor -> LED Anode -> LED Cathode -> `GND`. |
+| **LED 2 (Green/Go)** | `P2.5` | Connect `P2.5` -> Resistor -> LED Anode -> LED Cathode -> `GND`. |
+
+## How It Works (The State Machine)
+The core of the program operates on a 5-stage State Machine:
+1. **STATE_INIT:** Waits for the user to press the button to begin the game.
+2. **STATE_COUNTDOWN:** Displays a 3-2-1-GO! countdown on the LCD.
+3. **STATE_WAIT:** Calculates and executes a dynamic, unpredictable delay before the green LED turns on.
+4. **STATE_MEASURE:** Turns on the Green LED (`P2.5`), starts the stopwatch, and waits for the hardware interrupt from the button press. Saves the time to an array.
+5. **STATE_DONE:** Blinks both LEDs, calculates the average of the 10 trials, and displays the final score on the LCD.
+
+## Project Structure
+* `main.c`: Contains the state machine logic, hardware initialization, and interrupt service routines (ISRs).
+* `LCD.h`: Header file containing pin definitions and function prototypes for the LCD.
+* `LCD.c`: Library handling the low-level 8-bit parallel communication, cursor management, and string/time formatting for the 16x2 screen.
+
+## Setup and Execution
+1. Open Code Composer Studio (CCS).
+2. Create a new CCS Project for the `MSP430G2553`.
+3. Add `main.c`, `LCD.c`, and `LCD.h` to your project folder.
+4. Wire your breadboard according to the Pinout guide above.
+5. Build the project (ensure 0 errors) and hit **Debug** to flash the code to your Launchpad.
+6. Press the physical button connected to `P2.3` to start the test!
