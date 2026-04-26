@@ -184,6 +184,7 @@ void main(void)
                     printString("Good hold!");
                 }
                 delay_ms(2000);
+                clearLCD();
             }
             
             if (test_count < 10) {
@@ -194,6 +195,10 @@ void main(void)
         }
         
         else if (current_state == STATE_DONE) {
+            // 1. Protect the 4-bit sequence by turning OFF the button interrupt
+            // so accidental presses don't freeze the CPU during LCD communication.
+            P2IE &= ~BIT3; 
+
             int i;
             for(i = 0; i < 10; i++) {
                 P2OUT ^= (BIT4 | BIT5); 
@@ -209,6 +214,8 @@ void main(void)
             avg = (sum + penalty_ticks) / 10;
             
             clearLCD();
+            // 2. Give the slow clear screen command guaranteed time to finish
+            delay_ms(5); 
             printAvg(avg); 
             
             // FIRE THE DATA PIPELINE
@@ -216,8 +223,16 @@ void main(void)
             
             delay_ms(10000); 
             clearLCD();
-            button_pressed = 0;
+            delay_ms(5); 
+            
             printString("Press button to restart");
+            
+            // 3. Clear out any button mashes that happened during the wait
+            // and turn the button interrupt back ON to restart the game.
+            P2IFG &= ~BIT3; 
+            P2IE |= BIT3;   
+            button_pressed = 0;
+            
             while (!button_pressed);
             current_state = STATE_INIT;
         }
