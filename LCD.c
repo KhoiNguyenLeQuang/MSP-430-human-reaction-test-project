@@ -121,20 +121,28 @@ void printAvg(unsigned long ticks) {
     unsigned int secs = (ticks / 100) % 60;   
     unsigned int hund = ticks % 100;          
     
-    char buffer[9];
-    buffer[0] = (mins / 10) + '0';
-    buffer[1] = (mins % 10) + '0';
-    buffer[2] = ':';
-    buffer[3] = (secs / 10) + '0';
-    buffer[4] = (secs % 10) + '0';
-    buffer[5] = '.';
-    buffer[6] = (hund / 10) + '0';
-    buffer[7] = (hund % 10) + '0';
-    buffer[8] = '\0';
+    // Create a buffer exactly 16 characters long + 1 null terminator
+    char buffer[17]; 
+    
+    // Pad the front with 4 spaces
+    buffer[0] = ' '; buffer[1] = ' '; buffer[2] = ' '; buffer[3] = ' ';
+    
+    // Insert the 8-character time
+    buffer[4] = (mins / 10) + '0';
+    buffer[5] = (mins % 10) + '0';
+    buffer[6] = ':';
+    buffer[7] = (secs / 10) + '0';
+    buffer[8] = (secs % 10) + '0';
+    buffer[9] = '.';
+    buffer[10] = (hund / 10) + '0';
+    buffer[11] = (hund % 10) + '0';
+    
+    buffer[12] = ' '; buffer[13] = ' '; buffer[14] = ' '; buffer[15] = ' ';
+    buffer[16] = '\0';
     
     writeCommand(0x80); 
-    printString("Avg Time:       ");  
+    printString("  Final Average ");
+    
     writeCommand(0xC0); 
-    printString(buffer);
-    printString("   "); 
+    printString(buffer);             
 }
