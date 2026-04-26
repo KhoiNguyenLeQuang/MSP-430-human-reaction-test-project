@@ -16,7 +16,7 @@ unsigned int current_state = 0;
 unsigned long reaction_times[10];         
 unsigned int test_count = 0;
 
-// New Variables for Go/No-Go and Penalties
+// Go/No-Go and Penalties variables
 unsigned int is_go_trial = 1; 
 unsigned long penalty_ticks = 0; // 1 tick = 10ms
 unsigned long avg = 0;
@@ -46,11 +46,12 @@ void uart_print_num(unsigned long num) {
 }
 
 void sendDataCSV() {
+    int i; // FIX: Must be declared at the very top of the function
+    
     // 1. Send CSV Header
     uart_print("Trial,ReactionTime_ms\r\n");
 
     // 2. Loop through array and send data
-    int i;
     for (i = 0; i < 10; i++) {
         uart_print_num(i + 1);
         uart_print(",");
@@ -106,22 +107,34 @@ void main(void)
     // MAIN LOOP
     while(1) {
         if (current_state == STATE_INIT) {
+            P2IE &= ~BIT3; // Disable interrupts while screen loads
             clearLCD();
+            delay_ms(5);
             printString("Hit button to   start");
+            
+            P2IFG &= ~BIT3; // Clear phantom presses
+            P2IE |= BIT3;   // Re-enable interrupts
+            
             button_pressed = 0; 
             while(!button_pressed); 
             current_state = STATE_COUNTDOWN;
         }
         
         else if (current_state == STATE_COUNTDOWN) {
+            P2IE &= ~BIT3; // Protect this massive text string!
             clearLCD();
+            delay_ms(5);
             printString("Wait for green. DO NOT hit red.");
+            
             delay_ms(3000); 
             clearLCD(); printString("3"); delay_ms(1000); 
             clearLCD(); printString("2"); delay_ms(1000); 
             clearLCD(); printString("1"); delay_ms(1000); 
             clearLCD(); printString("GO!"); delay_ms(500); 
             clearLCD();
+            
+            P2IFG &= ~BIT3; 
+            P2IE |= BIT3; // Safe to turn back on
             
             test_count = 0; 
             penalty_ticks = 0; // Reset penalties
@@ -138,7 +151,7 @@ void main(void)
                 delay_ms(dynamic_delay_ms);
             }
             
-            is_go_trial = (TA1R % 3) != 0; // 66% chance of Green, 33% Red
+            is_go_trial = (TA1R % 4) != 0; // 75% chance of Green, 25% Red
 
             button_pressed = 0; 
             current_state = STATE_MEASURE;
@@ -167,8 +180,13 @@ void main(void)
             else {
                 // NO-GO TRIAL (RED LED)
                 P2OUT |= BIT4; 
+                
+                P2IE &= ~BIT3; // Protect LCD
                 clearLCD();
+                delay_ms(5);
                 printString("HOLD...");
+                P2IFG &= ~BIT3;
+                P2IE |= BIT3;  // Unprotect LCD
                 
                 // Wait 2 seconds (200 ticks) to see if they accidentally press it
                 while(time_ticks < 200 && !button_pressed);
@@ -176,15 +194,17 @@ void main(void)
                 is_running = 0;
                 P2OUT &= ~BIT4; 
 
+                P2IE &= ~BIT3; // Protect LCD
                 clearLCD();
+                delay_ms(5);
                 if (button_pressed) {
                     printString("FAILED! +500ms");
                     penalty_ticks += 50; // Add 500ms penalty
-                } else {
-                    printString("Good hold!");
-                }
+                } 
                 delay_ms(2000);
                 clearLCD();
+                P2IFG &= ~BIT3;
+                P2IE |= BIT3;  // Unprotect LCD
             }
             
             if (test_count < 10) {
@@ -195,11 +215,11 @@ void main(void)
         }
         
         else if (current_state == STATE_DONE) {
-            // 1. Protect the 4-bit sequence by turning OFF the button interrupt
-            // so accidental presses don't freeze the CPU during LCD communication.
+            int i; 
+            
+            // 1. Protect the 4-bit sequence
             P2IE &= ~BIT3; 
 
-            int i;
             for(i = 0; i < 10; i++) {
                 P2OUT ^= (BIT4 | BIT5); 
                 delay_ms(200); 
@@ -217,23 +237,23 @@ void main(void)
             // 2. Give the slow clear screen command guaranteed time to finish
             delay_ms(5); 
             printAvg(avg); 
-            
-            // FIRE THE DATA PIPELINE
-            sendDataCSV();
-            
             delay_ms(10000); 
             clearLCD();
-            delay_ms(5); 
+            // We do not need clearLCD() here. We will just crush the old text!
+            writeCommand(0x80); // Force to Line 1
+            printString("   Game Over!   "); // Exactly 16 chars
             
-            printString("Press button to restart");
+            writeCommand(0xC0); // Force to Line 2
+            printString(" Hit to restart "); // Exactly 16 chars
             
-            // 3. Clear out any button mashes that happened during the wait
-            // and turn the button interrupt back ON to restart the game.
             P2IFG &= ~BIT3; 
             P2IE |= BIT3;   
             button_pressed = 0;
             
             while (!button_pressed);
+            
+            // Turn the Stopwatch Timer back on for the next game!
+            TA1CTL = TASSEL_2 | ID_3 | MC_1 | TACLR; 
             current_state = STATE_INIT;
         }
     }
