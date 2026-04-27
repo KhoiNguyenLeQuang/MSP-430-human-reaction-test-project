@@ -146,3 +146,15 @@ void printAvg(unsigned long ticks) {
     writeCommand(0xC0); 
     printString(buffer);             
 }
+void printError(unsigned long pct) {
+    char buf[17] = "      000%      ";
+        
+    buf[6] = (pct / 100) + '0';
+    buf[7] = ((pct / 10) % 10) + '0';
+    buf[8] = (pct % 10) + '0';
+        
+    writeCommand(0x80);
+    printString("   Avg Error:   ");
+    writeCommand(0xC0);
+    printString(buf);
+}
