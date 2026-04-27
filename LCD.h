@@ -22,6 +22,7 @@ void printString(char* text);
 void initLCD(void);
 void clearLCD(void);
 void setCursor(unsigned char row, unsigned char col);
+void printError(unsigned long pct);
 
 // Custom Reaction Timer Functions
 void printTime(unsigned long ticks);
