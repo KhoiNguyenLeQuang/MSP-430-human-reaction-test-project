@@ -13,6 +13,7 @@ volatile unsigned int is_running = 0;
 volatile unsigned int update_display = 1;
 volatile unsigned int button_pressed = 0; 
 volatile unsigned int toggle_pressed = 0; 
+volatile unsigned int restart_pressed = 0;
 
 unsigned int current_state = 0;
 unsigned long reaction_times[10];         
@@ -172,16 +173,42 @@ void main(void)
                 // GO TRIAL (GREEN LED)
                 P2OUT |= BIT5; 
                 
+                // Stopwatch for Internal Timer Mode
+                if (game_mode == 1) {
+                    P2IE &= ~(BIT2 | BIT3);
+                    clearLCD(); delay_ms(5);
+                    writeCommand(0x80); 
+                    printString("  Target: 2.5s  "); 
+                    writeCommand(0xC0); 
+                    printString("   Timing...    "); 
+                    P2IFG &= ~(BIT2 | BIT3);
+                    P2IE |= (BIT2 | BIT3);
+                }
+                
                 while(!button_pressed) { 
                     if (update_display == 1) {
-                        printTime(time_ticks);
+                        // Live stopwatch for Go/No-Go 
+                        if (game_mode == 0) {
+                            printTime(time_ticks);
+                        }
                         update_display = 0;
                     }
                 }
+                
                 is_running = 0;     
                 P2OUT &= ~BIT5;     
                 
                 reaction_times[test_count] = time_ticks; 
+                
+                if (game_mode == 1) {
+                    P2IE &= ~(BIT2 | BIT3);
+                    clearLCD(); delay_ms(5);
+                    printTime(time_ticks); 
+                    delay_ms(1500); 
+                    P2IFG &= ~(BIT2 | BIT3);
+                    P2IE |= (BIT2 | BIT3);
+                }
+                
                 test_count++;
             } 
             else {
@@ -242,6 +269,7 @@ void main(void)
             
             // CALCULATE FINAL SCORES BASED ON MODE
             if (game_mode == 0) {
+                // Go/No-Go: Calculate Average Time
                 sum = 0;
                 for(i = 0; i < 10; i++) {
                     sum += reaction_times[i];
@@ -264,33 +292,24 @@ void main(void)
                 }
                 unsigned long avg_err_pct = (total_error * 100) / (10 * 250); 
                 
-                if (avg_err_pct > 999) avg_err_pct = 999;
+                if (avg_err_pct > 999) avg_err_pct = 999; 
                 
-                writeCommand(0x80);
-                printString("   Avg Error:   ");
-                writeCommand(0xC0);
-                
-                // Format the 3-digit percentage string
-                char buf[17] = "      000%      ";
-                buf[6] = (avg_err_pct / 100) + '0';
-                buf[7] = ((avg_err_pct / 10) % 10) + '0';
-                buf[8] = (avg_err_pct % 10) + '0';
-                printString(buf);
+                printError(avg_err_pct);
             }
             
             delay_ms(4000); 
             
             clearLCD(); delay_ms(5); 
-            writeCommand(0x80); 
+            writeCommand(0x80);
             printString("   Game Over!   "); 
-            writeCommand(0xC0); 
-            printString(" Hit to restart "); 
+            writeCommand(0xC0);
+            printString("Both Btns -> Rst"); 
             
             P2IFG &= ~(BIT2 | BIT3); 
             P2IE |= (BIT2 | BIT3);   
-            button_pressed = 0;
+            restart_pressed = 0;
             
-            while (!button_pressed);
+            while (!restart_pressed);
             
             TA1CTL = TASSEL_2 | ID_3 | MC_1 | TACLR; 
             current_state = STATE_INIT;
@@ -310,16 +329,20 @@ __interrupt void Timer1_A0(void) {
 #pragma vector=PORT2_VECTOR
 __interrupt void Port_2(void) {
     unsigned long delay;                                
-    for(delay=0 ; delay<12345 ; delay=delay+1); 
+    for(delay=0 ; delay<12345 ; delay=delay+1); // Debounce
     
+    // Check BOTH P2.2 and P2.3 (Restart button)
+    if ((P2IN & BIT2) == 0 && (P2IN & BIT3) == 0) {
+      restart_pressed = 1;
+      P2IFG &= ~(BIT2 | BIT3);
+    }
     // Check P2.3 (Select/Action Button)
-    if (P2IFG & BIT3) { 
+    else if (P2IFG & BIT3) { 
       button_pressed = 1;  
       P2IFG &= ~BIT3;      
     }
-    
     // Check P2.2 (Toggle Button)
-    if (P2IFG & BIT2) {
+    else if (P2IFG & BIT2) {
       toggle_pressed = 1;
       P2IFG &= ~BIT2;
     }
