@@ -22,49 +22,6 @@ unsigned long penalty_ticks = 0; // 1 tick = 10ms
 unsigned long avg = 0;
 unsigned long sum = 0;
 
-// UART Helper Functions
-void uart_print(char *str) {
-    while (*str != '\0') {
-        while (!(IFG2 & UCA0TXIFG)); // Wait for TX buffer to be ready
-        UCA0TXBUF = *str;
-        str++;
-    }
-}
-
-void uart_print_num(unsigned long num) {
-    char buf[10];
-    int i = 0;
-    if (num == 0) { uart_print("0"); return; }
-    while (num > 0) {
-        buf[i++] = (num % 10) + '0';
-        num /= 10;
-    }
-    while (i > 0) {
-        while (!(IFG2 & UCA0TXIFG));
-        UCA0TXBUF = buf[--i];
-    }
-}
-
-void sendDataCSV() {
-    int i; // FIX: Must be declared at the very top of the function
-    
-    // 1. Send CSV Header
-    uart_print("Trial,ReactionTime_ms\r\n");
-
-    // 2. Loop through array and send data
-    for (i = 0; i < 10; i++) {
-        uart_print_num(i + 1);
-        uart_print(",");
-        uart_print_num(reaction_times[i] * 10); // Convert ticks to milliseconds
-        uart_print("\r\n");
-    }
-    
-    // 3. Send final penalty data
-    uart_print("Total Penalty_ms,");
-    uart_print_num(penalty_ticks * 10);
-    uart_print("\r\n\r\n");
-}
-
 void main(void)
 {
     WDTCTL  = WDTPW | WDTHOLD;      
@@ -92,28 +49,18 @@ void main(void)
     TA1CCTL0 = CCIE;                
     TA1CTL = TASSEL_2 | ID_3 | MC_1 | TACLR; 
 
-    // UART HARDWARE SETUP 
-    P1SEL |= BIT1 | BIT2;     // Set P1.1 and P1.2 to UART RX/TX mode
-    P1SEL2 |= BIT1 | BIT2;
-    
-    UCA0CTL1 |= UCSSEL_2;     // Use SMCLK (1MHz)
-    UCA0BR0 = 104;            // 1MHz / 9600 = 104
-    UCA0BR1 = 0;              
-    UCA0MCTL = UCBRS0;        // Modulation UCBRSx = 1
-    UCA0CTL1 &= ~UCSWRST;     // Initialize UART state machine
-
     _BIS_SR(GIE);             
 
     // MAIN LOOP
     while(1) {
         if (current_state == STATE_INIT) {
-            P2IE &= ~BIT3; // Disable interrupts while screen loads
+            P2IE &= ~BIT3; 
             clearLCD();
             delay_ms(5);
             printString("Hit button to   start");
             
-            P2IFG &= ~BIT3; // Clear phantom presses
-            P2IE |= BIT3;   // Re-enable interrupts
+            P2IFG &= ~BIT3; 
+            P2IE |= BIT3;   
             
             button_pressed = 0; 
             while(!button_pressed); 
@@ -121,10 +68,13 @@ void main(void)
         }
         
         else if (current_state == STATE_COUNTDOWN) {
-            P2IE &= ~BIT3; // Protect this massive text string!
+            P2IE &= ~BIT3; 
             clearLCD();
             delay_ms(5);
-            printString("Wait for green. DO NOT hit red.");
+            writeCommand(0x80); 
+            printString(" Wait for green "); 
+            writeCommand(0xC0); 
+            printString(" DO NOT hit red "); 
             
             delay_ms(3000); 
             clearLCD(); printString("3"); delay_ms(1000); 
@@ -134,10 +84,10 @@ void main(void)
             clearLCD();
             
             P2IFG &= ~BIT3; 
-            P2IE |= BIT3; // Safe to turn back on
+            P2IE |= BIT3;
             
             test_count = 0; 
-            penalty_ticks = 0; // Reset penalties
+            penalty_ticks = 0;
             current_state = STATE_WAIT;
         }
         
@@ -181,20 +131,20 @@ void main(void)
                 // NO-GO TRIAL (RED LED)
                 P2OUT |= BIT4; 
                 
-                P2IE &= ~BIT3; // Protect LCD
+                P2IE &= ~BIT3;
                 clearLCD();
                 delay_ms(5);
                 printString("HOLD...");
                 P2IFG &= ~BIT3;
-                P2IE |= BIT3;  // Unprotect LCD
+                P2IE |= BIT3;  
                 
-                // Wait 2 seconds (200 ticks) to see if they accidentally press it
+                // Wait 2 seconds
                 while(time_ticks < 200 && !button_pressed);
                 
                 is_running = 0;
                 P2OUT &= ~BIT4; 
 
-                P2IE &= ~BIT3; // Protect LCD
+                P2IE &= ~BIT3; 
                 clearLCD();
                 delay_ms(5);
                 if (button_pressed) {
@@ -204,7 +154,7 @@ void main(void)
                 delay_ms(2000);
                 clearLCD();
                 P2IFG &= ~BIT3;
-                P2IE |= BIT3;  // Unprotect LCD
+                P2IE |= BIT3;
             }
             
             if (test_count < 10) {
@@ -217,34 +167,34 @@ void main(void)
         else if (current_state == STATE_DONE) {
             int i; 
             
-            // 1. Protect the 4-bit sequence
-            P2IE &= ~BIT3; 
+            P2IE &= ~BIT3;
 
+            // 1. Blink LEDs
             for(i = 0; i < 10; i++) {
                 P2OUT ^= (BIT4 | BIT5); 
                 delay_ms(200); 
             }
             P2OUT &= ~(BIT4 | BIT5);  
             
-            // Calculate Average WITH Penalties included
+            // 2. Calculate Average WITH Penalties included
             sum = 0;
             for(i = 0; i < 10; i++) {
                 sum += reaction_times[i];
             }
             avg = (sum + penalty_ticks) / 10;
-            
-            clearLCD();
-            // 2. Give the slow clear screen command guaranteed time to finish
-            delay_ms(5); 
+            initLCD();
+            // 3. Display the Final Average safely
+            delay_ms(5);
             printAvg(avg); 
-            delay_ms(10000); 
-            clearLCD();
-            // We do not need clearLCD() here. We will just crush the old text!
-            writeCommand(0x80); // Force to Line 1
-            printString("   Game Over!   "); // Exactly 16 chars
             
-            writeCommand(0xC0); // Force to Line 2
-            printString(" Hit to restart "); // Exactly 16 chars
+            delay_ms(3000); 
+            
+            clearLCD();
+            delay_ms(5); 
+            writeCommand(0x80);
+            printString("   Game Over!   ");
+            writeCommand(0xC0);
+            printString(" Hit to restart "); 
             
             P2IFG &= ~BIT3; 
             P2IE |= BIT3;   
@@ -252,7 +202,6 @@ void main(void)
             
             while (!button_pressed);
             
-            // Turn the Stopwatch Timer back on for the next game!
             TA1CTL = TASSEL_2 | ID_3 | MC_1 | TACLR; 
             current_state = STATE_INIT;
         }
@@ -271,9 +220,8 @@ __interrupt void Timer1_A0(void) {
 #pragma vector=PORT2_VECTOR
 __interrupt void Port_2(void) {
     unsigned long delay;                                
-    for(delay=0 ; delay<12345 ; delay=delay+1); // Debounce delay
+    for(delay=0 ; delay<12345 ; delay=delay+1); 
     
-    // If button pressed 
     if (P2IFG & BIT3) { 
       button_pressed = 1;  
       P2IFG &= ~BIT3;      
