@@ -60,21 +60,6 @@ void printString(char* text) {
     }
 }
 
-void printStringWrapped(char* text) {
-    unsigned int count = 0;
-
-    while (*text != '\0' && count < 32) {
-
-        if (count == 16) {
-            writeCommand(0xC0); 
-        }
-
-        writeChar(*text);
-        text++;
-        count++;
-    }
-}
-
 void initLCD(void) {
     DATA_DIR = 0xFF;                  
     CTRL_DIR |= (RS_PIN | E_PIN);     
