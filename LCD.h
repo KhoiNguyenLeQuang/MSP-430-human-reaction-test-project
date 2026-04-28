@@ -15,7 +15,6 @@
 void delay_us(unsigned int us);
 void delay_ms(unsigned int ms);
 void pulseEnable(void);
-void sendNibble(unsigned char nibble);
 void writeCommand(unsigned char command);
 void writeChar(char data);
 void printString(char* text);
