@@ -165,19 +165,9 @@ __interrupt void Timer1_A0(void) {
 
 #pragma vector=PORT2_VECTOR
 __interrupt void Port_2(void) {
-    // Check BOTH P2.2 and P2.3 (Restart button)
-    if ((P2IN & BIT2) == 0 && (P2IN & BIT3) == 0) {
-      restart_pressed = 1;
-      P2IFG &= ~(BIT2 | BIT3);
-    }
     // Check P2.3 (Select/Action Button)
     else if (P2IFG & BIT3) { 
       button_pressed = 1;  
       P2IFG &= ~BIT3;      
-    }
-    // Check P2.2 (Toggle Button)
-    else if (P2IFG & BIT2) {
-      toggle_pressed = 1;
-      P2IFG &= ~BIT2;
     }
 }
