@@ -63,7 +63,7 @@ void main(void)
             P2IE &= ~(BIT2 | BIT3); 
             clearLCD();
             delay_ms(5);
-            printString("Hit left btn to start the game");
+            printString("Hit right btn to start the game");
             
             P2IFG &= ~(BIT2 | BIT3); 
             P2IE |= (BIT2 | BIT3);   
